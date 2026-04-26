@@ -207,14 +207,9 @@ def get_sheet():
         "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/spreadsheets"
     ]
-    try:
-        creds_dict = dict(st.secrets["GOOGLE_CREDENTIALS"])
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-    except:
-        creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
+    creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
     client = gspread.authorize(creds)
     return client.open_by_key(SHEET_ID)
-
 
 def test_sheets():
     try:
@@ -252,18 +247,17 @@ def load_data():
         worksheet = sh.worksheet("audits")
         data = worksheet.get_all_records()
         if data:
-            st.session_state.audits = data
+            df = pd.DataFrame(data)
+            df['is_finding'] = df['is_finding'].apply(
+                lambda x: True if str(x).lower() in ['true', '1', 'yes'] else False)
+            df['question_id'] = pd.to_numeric(df['question_id'], errors='coerce').fillna(0).astype(int)
+            st.session_state.audits = df.to_dict('records')
             return True
         return False
     except Exception as e:
         st.error(f"Load error: {e}")
         return False
-def add_history(action, details):
-    st.session_state.history.append({
-        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'action': action,
-        'details': details
-    })
+
 
 
 # ===== PARSE CSV =====
