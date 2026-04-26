@@ -207,9 +207,14 @@ def get_sheet():
         "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/spreadsheets"
     ]
-    creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
+    try:
+        creds_dict = dict(st.secrets["GOOGLE_CREDENTIALS"])
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    except:
+        creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
     client = gspread.authorize(creds)
     return client.open_by_key(SHEET_ID)
+
 
 def test_sheets():
     try:
