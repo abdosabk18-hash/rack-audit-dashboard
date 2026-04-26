@@ -6,6 +6,9 @@ from datetime import datetime, timedelta
 import json
 import os
 from PIL import Image
+import gspread
+from google.oauth2.service_account import Credentials
+
 
 
 # ===== PAGE CONFIG =====
@@ -99,9 +102,22 @@ st.markdown("""
 import requests
 import base64
 
-GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
-GITHUB_REPO = st.secrets["GITHUB_REPO"]
-GITHUB_USER = st.secrets["GITHUB_USER"]
+SHEET_ID = "1pq1o6kU2hx3E4UgE1o59R7XfZvD2hBAVu4biMr5y1mA"
+
+def test_sheets():
+    try:
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/spreadsheets"
+        ]
+        creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
+        client = gspread.authorize(creds)
+        sheets = client.openall()
+        st.write([s.title for s in sheets])
+    except Exception as e:
+        st.error(str(e))
+
 
 
 if 'audits' not in st.session_state:
@@ -183,63 +199,65 @@ def compliance_color(pct):
         return "🔴", "compliance-low"
 
 # ===== SAVE & LOAD =====
+SHEET_ID = "1pq1o6kU2hx3E4UgE1o59R7XfZvD2hBAVu4biMr5y1mA"
+
+def get_sheet():
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/spreadsheets"
+    ]
+    try:
+        creds_dict = dict(st.secrets["GOOGLE_CREDENTIALS"])
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    except:
+        creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
+    client = gspread.authorize(creds)
+    return client.open_by_key(SHEET_ID)
+
+
+def test_sheets():
+    try:
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/spreadsheets"
+        ]
+        creds = Credentials.from_service_account_file("credentials.json", scopes=scope)
+        client = gspread.authorize(creds)
+        sheets = client.openall()
+        st.write([s.title for s in sheets])
+    except Exception as e:
+        st.error(str(e))
 def save_data():
     try:
-        data = {
-            'audits': st.session_state.audits,
-            'last_touch': st.session_state.last_touch,
-            'history': st.session_state.history,
-            'saved_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        content = base64.b64encode(
-            json.dumps(data, indent=2).encode()
-        ).decode()
-        
-        url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/rack_audit_data.json"
-        headers = {
-            "Authorization": f"token {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-        
-        r = requests.get(url, headers=headers)
-        sha = r.json().get('sha', '') if r.status_code == 200 else ''
-        
-        payload = {
-            "message": "Update audit data",
-            "content": content
-        }
-        if sha:
-            payload["sha"] = sha
-            
-        requests.put(url, headers=headers, json=payload)
+        sh = get_sheet()
+        worksheet = sh.worksheet("audits") if "audits" in [w.title for w in sh.worksheets()] else sh.add_worksheet("audits", 1000, 20)
+        worksheet.clear()
+        if st.session_state.audits:
+            df = pd.DataFrame(st.session_state.audits)
+            worksheet.update([df.columns.tolist()] + df.values.tolist())
         return True
     except Exception as e:
-        st.error(f"Save error: {e}")
-        st.write(str(e))
+        st.error(f"Save error: {str(e)}")
+        st.exception(e)
         return False
+        
+
 
 
 def load_data():
     try:
-        url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/rack_audit_data.json"
-        headers = {
-            "Authorization": f"token {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-        r = requests.get(url, headers=headers)
-        if r.status_code == 200:
-            content = base64.b64decode(r.json()['content']).decode()
-            data = json.loads(content)
-            st.session_state.audits = data.get('audits', [])
-            st.session_state.last_touch = data.get('last_touch', {})
-            st.session_state.history = data.get('history', [])
+        sh = get_sheet()
+        worksheet = sh.worksheet("audits")
+        data = worksheet.get_all_records()
+        if data:
+            st.session_state.audits = data
             return True
         return False
     except Exception as e:
         st.error(f"Load error: {e}")
         return False
-
-
 def add_history(action, details):
     st.session_state.history.append({
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -304,9 +322,11 @@ with st.sidebar:
     ])
 
     st.markdown("---")
+    if st.button("🧪 Test Sheets"):
+        test_sheets()
     if st.button("📂 Load Saved Data"):
         if load_data():
-            st.success("✅ Data loaded!")
+
             st.rerun()
         else:
             st.warning("No saved data found.")
@@ -364,7 +384,7 @@ if page == "📥 Upload Audit":
                 # Aisle 1
                 for _, row in df.iterrows():
                     try:
-                        q_id = int(row['Q#'])
+                        q_id = int(row.get('Q#', row.get('Q', 0)))
                     except:
                         continue
                     answer1 = str(row.get('Yes/No Aisle1', 'Yes')).strip()
@@ -390,7 +410,7 @@ if page == "📥 Upload Audit":
                 # Aisle 2
                 for _, row in df.iterrows():
                     try:
-                        q_id = int(row['Q#'])
+                        q_id = int(row.get('Q#', row.get('Q', 0)))
                     except:
                         continue
                     answer2 = str(row.get('Yes/No Aisle2', 'Yes')).strip()
