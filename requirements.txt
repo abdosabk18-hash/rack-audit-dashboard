@@ -3,4 +3,4 @@ pandas
 plotly
 openpyxl
 pillow
-supabase==2.3.0
+supabase
