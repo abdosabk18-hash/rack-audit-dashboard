@@ -416,8 +416,11 @@ if page == "📥 Upload Audit":
                 st.session_state.audits.extend(new_records)
                 add_history('Audit Uploaded',
                     f'{shift} | {aisle1} & {aisle2} | {audit_date} | {len(new_records)} records')
-                save_data()
-                st.success(f"✅ Saved {len(new_records)} audit records!")
+                result = save_data()
+                if result:
+                    st.success(f"✅ Saved {len(new_records)} audit records!")
+                else:
+                    st.error("❌ Failed to save to GitHub!")
                 st.balloons()
                 st.rerun()
 
