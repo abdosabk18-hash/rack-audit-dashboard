@@ -233,8 +233,9 @@ def load_data():
             st.session_state.history = data.get('history', [])
             return True
         return False
-    except Exception as e:
-        st.error(f"Load error: {e}")
+        except Exception as e:
+        st.error(f"Save error: {e}")
+        st.write(str(e))
         return False
 
 def add_history(action, details):
