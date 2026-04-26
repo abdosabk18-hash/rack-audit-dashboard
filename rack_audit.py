@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import json
 import os
 from PIL import Image
+from supabase import create_client, Client
+
 
 # ===== PAGE CONFIG =====
 st.set_page_config(
@@ -94,6 +96,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ===== SESSION STATE =====
+# Supabase connection
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
 if 'audits' not in st.session_state:
     st.session_state.audits = []
 if 'last_touch' not in st.session_state:
@@ -174,31 +181,25 @@ def compliance_color(pct):
 
 # ===== SAVE & LOAD =====
 def save_data():
-    data = {
-        'audits': st.session_state.audits,
-        'last_touch': st.session_state.last_touch,
-        'history': st.session_state.history,
-        'saved_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    }
-    with open('rack_audit_data.json', 'w') as f:
-        json.dump(data, f, indent=2)
+    try:
+        for audit in st.session_state.audits:
+            supabase.table("audits").upsert(audit).execute()
+        return True
+    except Exception as e:
+        st.error(f"Save error: {e}")
+        return False
 
 def load_data():
-    if os.path.exists('rack_audit_data.json'):
-        with open('rack_audit_data.json', 'r') as f:
-            data = json.load(f)
-            st.session_state.audits = data.get('audits', [])
-            st.session_state.last_touch = data.get('last_touch', {})
-            st.session_state.history = data.get('history', [])
-        return True
-    return False
+    try:
+        response = supabase.table("audits").select("*").execute()
+        if response.data:
+            st.session_state.audits = response.data
+            return True
+        return False
+    except Exception as e:
+        st.error(f"Load error: {e}")
+        return False
 
-def add_history(action, details):
-    st.session_state.history.append({
-        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'action': action,
-        'details': details
-    })
 
 # ===== PARSE CSV =====
 def parse_audit_csv(uploaded_file, aisle1, aisle2, shift, audit_date):
