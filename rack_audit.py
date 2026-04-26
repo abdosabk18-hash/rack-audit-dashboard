@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 import json
 import os
 from PIL import Image
-from supabase import create_client, Client
 
 
 # ===== PAGE CONFIG =====
@@ -97,9 +96,13 @@ st.markdown("""
 
 # ===== SESSION STATE =====
 # Supabase connection
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+import requests
+import base64
+
+GITHUB_TOKEN = st.secrets["GITHUB_TOKEN"]
+GITHUB_REPO = st.secrets["GITHUB_REPO"]
+GITHUB_USER = st.secrets["GITHUB_USER"]
+
 
 if 'audits' not in st.session_state:
     st.session_state.audits = []
@@ -182,8 +185,33 @@ def compliance_color(pct):
 # ===== SAVE & LOAD =====
 def save_data():
     try:
-        for audit in st.session_state.audits:
-            supabase.table("audits").upsert(audit).execute()
+        data = {
+            'audits': st.session_state.audits,
+            'last_touch': st.session_state.last_touch,
+            'history': st.session_state.history,
+            'saved_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        content = base64.b64encode(
+            json.dumps(data, indent=2).encode()
+        ).decode()
+        
+        url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/rack_audit_data.json"
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        
+        r = requests.get(url, headers=headers)
+        sha = r.json().get('sha', '') if r.status_code == 200 else ''
+        
+        payload = {
+            "message": "Update audit data",
+            "content": content
+        }
+        if sha:
+            payload["sha"] = sha
+            
+        requests.put(url, headers=headers, json=payload)
         return True
     except Exception as e:
         st.error(f"Save error: {e}")
@@ -191,21 +219,30 @@ def save_data():
 
 def load_data():
     try:
-        response = supabase.table("audits").select("*").execute()
-        if response.data:
-            st.session_state.audits = response.data
+        url = f"https://api.github.com/repos/{GITHUB_USER}/{GITHUB_REPO}/contents/rack_audit_data.json"
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+        r = requests.get(url, headers=headers)
+        if r.status_code == 200:
+            content = base64.b64decode(r.json()['content']).decode()
+            data = json.loads(content)
+            st.session_state.audits = data.get('audits', [])
+            st.session_state.last_touch = data.get('last_touch', {})
+            st.session_state.history = data.get('history', [])
             return True
         return False
     except Exception as e:
         st.error(f"Load error: {e}")
         return False
+
 def add_history(action, details):
     st.session_state.history.append({
         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'action': action,
         'details': details
     })
-
 
 
 # ===== PARSE CSV =====
