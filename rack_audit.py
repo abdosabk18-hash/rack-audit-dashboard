@@ -199,6 +199,13 @@ def load_data():
     except Exception as e:
         st.error(f"Load error: {e}")
         return False
+def add_history(action, details):
+    st.session_state.history.append({
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'action': action,
+        'details': details
+    })
+
 
 
 # ===== PARSE CSV =====
