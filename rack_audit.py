@@ -945,10 +945,11 @@ elif page == "⚠️ Findings & CA":
                             st.session_state.audits[idx]['ca_notes'] = ca_note
                             st.session_state.audits[idx]['ca_updated'] = datetime.now().strftime('%Y-%m-%d %H:%M')
                             add_history('CA Updated',
-                                f'Q{row["question_id"]} | {row["aisle"]} → {new_status}')
+                                f'Q{row["question_id"]} | {row["aisle"]} → {new_status} | Notes: {ca_note}')
                             save_data()
                             st.success("✅ Updated!")
                             st.rerun()
+
 
             # ── Export Findings ──
             st.markdown("---")
