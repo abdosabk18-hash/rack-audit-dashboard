@@ -236,6 +236,7 @@ def save_data():
         worksheet.clear()
         if st.session_state.audits:
             df = pd.DataFrame(st.session_state.audits)
+            df['is_finding'] = df['is_finding'].astype(str)
             worksheet.update([df.columns.tolist()] + df.values.tolist())
         return True
     except Exception as e:
