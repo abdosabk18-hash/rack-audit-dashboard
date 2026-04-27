@@ -234,17 +234,17 @@ def save_data():
         sh = get_sheet()
         worksheet = sh.worksheet("audits") if "audits" in [w.title for w in sh.worksheets()] else sh.add_worksheet("audits", 1000, 20)
         worksheet.clear()
-                if st.session_state.audits:
+        if st.session_state.audits:
             df = pd.DataFrame(st.session_state.audits)
             df = df.fillna('')
             df['is_finding'] = df['is_finding'].astype(str)
             worksheet.update([df.columns.tolist()] + df.values.tolist())
-       
-       return True
+        return True
     except Exception as e:
         st.error(f"Save error: {str(e)}")
         st.exception(e)
         return False
+
         
 
 
